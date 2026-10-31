@@ -1,4 +1,3 @@
-import "server-only";
 import { Schema, model, models, type Model, type InferSchemaType } from "mongoose";
 import { RESERVATION_STATUS, RESERVATION_STATUSES, ACCESS_ACTION } from "@/constants/reservation-status";
 

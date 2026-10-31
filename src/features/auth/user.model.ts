@@ -1,4 +1,3 @@
-import "server-only";
 import { Schema, model, models, type Model, type InferSchemaType } from "mongoose";
 import { USER_ROLE, USER_ROLES } from "@/constants/reservation-status";
 
