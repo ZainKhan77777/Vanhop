@@ -22,6 +22,22 @@
   .label { @apply mb-1.5 block text-[13px] font-semibold text-muted; }
 }
 
+@layer utilities {
+  /*
+    Hero entrance. Defined here rather than in tailwind.config.ts because the
+    dev server does not pick up config changes without a restart, and because
+    the delays are set per element inline anyway.
+
+    `both` fill mode matters: it holds the start state through the delay, so a
+    staggered word is invisible until its turn instead of flashing first.
+  */
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(26px); }
+    to   { opacity: 1; transform: none; }
+  }
+  .animate-rise { animation: rise .72s cubic-bezier(.22, .9, .3, 1) both; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: .01ms !important;
