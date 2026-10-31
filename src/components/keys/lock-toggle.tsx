@@ -5,20 +5,24 @@ import { cn } from "@/lib/format";
 interface Props {
   unlocked: boolean;
   pending: boolean;
+  disabled?: boolean;
   pulse: number;
   onToggle: () => void;
 }
 
-export function LockToggle({ unlocked, pending, pulse, onToggle }: Props): React.JSX.Element {
+export function LockToggle({ unlocked, pending, disabled = false, pulse, onToggle }: Props): React.JSX.Element {
+  const off = pending || disabled;
+
   return (
     <button
       type="button"
       onClick={onToggle}
-      disabled={pending}
+      disabled={off}
       aria-pressed={unlocked}
       className={cn(
         "relative flex h-16 w-full max-w-[340px] items-center rounded-full border-[1.5px] shadow-sm2",
-        "transition-colors duration-500 ease-soft hover:shadow-md2 disabled:opacity-60",
+        "transition-colors duration-500 ease-soft disabled:cursor-not-allowed disabled:opacity-55",
+        off ? "" : "hover:shadow-md2",
         unlocked ? "border-brass bg-brass" : "border-line-2 bg-surface-2",
       )}
     >
@@ -49,7 +53,7 @@ export function LockToggle({ unlocked, pending, pulse, onToggle }: Props): React
         className={cn("flex-1 text-center text-[15px] font-bold transition-all duration-[550ms] ease-soft",
           unlocked ? "pl-4 pr-[62px] text-white" : "pl-[62px] pr-4 text-navy-900")}
       >
-        {pending ? "Working…" : unlocked ? "Lock the van" : "Unlock the van"}
+        {pending ? "Working…" : disabled ? "Key not active" : unlocked ? "Lock the van" : "Unlock the van"}
       </span>
     </button>
   );

@@ -1,13 +1,16 @@
 import "server-only";
+import { randomInt } from "node:crypto";
 import mongoose, { isValidObjectId, type FilterQuery } from "mongoose";
 import { connectDb } from "@/lib/db";
 import { AppError } from "@/lib/errors";
 import { MESSAGES } from "@/constants/messages";
-import { PRICING, RESERVATION_STATUS, ACCESS_ACTION } from "@/constants/reservation-status";
-import { nights, toUtcDay, isoDay } from "@/lib/format";
+import { PRICING, RESERVATION_STATUS, ACCESS_ACTION, REFERENCE, PHONE_KEY } from "@/constants/reservation-status";
+import { rentalDays, toUtcDay, isoDay } from "@/lib/format";
 import { Van, type VanDocument } from "../vans/van.model";
 import { Reservation, type ReservationDocument } from "./reservation.model";
-import { conflictFilter } from "./availability";
+import { BookingLock, lockKey } from "./booking-lock.model";
+import { sendBookingConfirmation } from "./reservation.mail";
+import { conflictFilter, customerConflictFilter } from "./availability";
 import { toReservationDto } from "./reservation.types";
 import type { CreateReservationDto } from "./dto/create-reservation.dto";
 import type { ListReservationsDto } from "./dto/list-reservations.dto";
@@ -51,10 +54,11 @@ export async function createReservation(input: CreateReservationDto): Promise<Re
 
   const start = toUtcDay(input.startDate);
   const end = toUtcDay(input.endDate);
-  if (end <= start) throw AppError.badRequest(MESSAGES.DATE_ORDER);
+  // Equal dates are a one-day rental, not an error.
+  if (end < start) throw AppError.badRequest(MESSAGES.DATE_ORDER);
   if (start < startOfToday()) throw AppError.badRequest(MESSAGES.DATE_IN_PAST);
 
-  const days = nights(start, end);
+  const days = rentalDays(start, end);
   const payload = {
     vanId: van._id,
     customer: input.customer,
@@ -66,35 +70,62 @@ export async function createReservation(input: CreateReservationDto): Promise<Re
     status: RESERVATION_STATUS.CONFIRMED,
   };
 
-  const id = await insertGuarded(String(van._id), start, end, payload);
+  const id = await insertGuarded(String(van._id), input.customer.email, start, end, payload);
   const doc = await findPopulated({ _id: id });
   if (!doc) throw AppError.notFound(MESSAGES.RESERVATION_NOT_FOUND);
-  return toReservationDto(doc);
+
+  const reservation = toReservationDto(doc);
+
+  // The booking is already committed, so mail must not be able to undo it.
+  // sendBookingConfirmation swallows its own errors; this guard is belt and braces.
+  try {
+    await sendBookingConfirmation(reservation);
+  } catch (error) {
+    console.error("[reservation] confirmation email failed", error);
+  }
+
+  return reservation;
 }
 
 /**
  * Two people can pass an availability check in the same instant, so the check and
  * the insert have to be atomic.
  *
- * Preferred path: a Mongoose transaction — Atlas runs a replica set, so the
- * re-check and the insert commit together or not at all.
+ * Two things are checked, both of them races:
+ *   1. the van is free for the range;
+ *   2. this customer has no other live booking over the same range, on any van.
  *
- * Fallback: a standalone mongod (local dev) has no transactions, so we insert and
- * immediately re-check. If another booking slipped in, we delete ours and report
- * the clash. The write that committed first wins; the loser never stays stored.
+ * A transaction on its own is NOT enough here, which is the subtle part. Mongo
+ * gives snapshot isolation: concurrent transactions each read "nothing clashes"
+ * from their own snapshot and then insert two *different* documents, which the
+ * server does not consider a conflict. Both commit, and the van is double-booked.
+ *
+ * So each booking first bumps a counter on a shared BookingLock row — one per
+ * van, one per customer. Writing the same document *is* a conflict, so Mongo
+ * aborts the loser with a TransientTransactionError, withTransaction retries it,
+ * and the retry reads the winner's reservation and throws a clean 409.
+ *
+ * Fallback: a standalone mongod (local dev) has no transactions. There we insert
+ * first and re-check; the row with the lowest _id wins so the losers — and only
+ * the losers — delete themselves.
  */
 async function insertGuarded(
   vanId: string,
+  email: string,
   start: Date,
   end: Date,
   payload: Record<string, unknown>,
 ): Promise<string> {
+  // Created outside the transaction: a concurrent upsert of a brand-new key
+  // raises a duplicate-key error, which is not transient and would not be retried.
+  await ensureLocks(vanId, email);
+
   const session = await mongoose.startSession();
   try {
     let createdId = "";
     await session.withTransaction(async () => {
-      const clash = await Reservation.countDocuments(conflictFilter(vanId, start, end)).session(session);
-      if (clash > 0) throw AppError.conflict(MESSAGES.DATES_UNAVAILABLE);
+      await takeLocks(vanId, email, session);
+      await assertNoClash(vanId, email, start, end, null, session);
       const [created] = await Reservation.create([{ ...payload, reference: newReference() }], { session });
       createdId = String(created._id);
     });
@@ -104,18 +135,60 @@ async function insertGuarded(
     if (!isTransactionUnsupported(error)) throw error;
 
     const created = await Reservation.create({ ...payload, reference: newReference() });
-    const clash = await Reservation.countDocuments({
-      ...conflictFilter(vanId, start, end),
-      _id: { $ne: created._id },
-    });
-    if (clash > 0) {
+    try {
+      await assertNoClash(vanId, email, start, end, String(created._id), null);
+    } catch (clash) {
       await Reservation.deleteOne({ _id: created._id });
-      throw AppError.conflict(MESSAGES.DATES_UNAVAILABLE);
+      throw clash;
     }
     return String(created._id);
   } finally {
     await session.endSession();
   }
+}
+
+/** Makes sure both lock rows exist, so the in-transaction bump is a plain update. */
+async function ensureLocks(vanId: string, email: string): Promise<void> {
+  const keys = [lockKey.van(vanId), lockKey.customer(email)];
+  await Promise.all(
+    keys.map((key) =>
+      BookingLock.updateOne({ key }, { $setOnInsert: { key, seq: 0 } }, { upsert: true })
+        // Two requests can create the same key at once; whoever loses just carries on.
+        .catch((error: unknown) => {
+          if ((error as { code?: number }).code !== 11000) throw error;
+        }),
+    ),
+  );
+}
+
+/** The write that makes concurrent bookings for one van collide. */
+async function takeLocks(vanId: string, email: string, session: mongoose.ClientSession): Promise<void> {
+  // Always in the same order, so two requests can never deadlock holding one each.
+  for (const key of [lockKey.van(vanId), lockKey.customer(email)].sort()) {
+    await BookingLock.updateOne({ key }, { $inc: { seq: 1 } }, { session });
+  }
+}
+
+/** Both conflict checks, sharing one shape so the two paths above can't drift. */
+async function assertNoClash(
+  vanId: string,
+  email: string,
+  start: Date,
+  end: Date,
+  excludeId: string | null,
+  session: mongoose.ClientSession | null,
+): Promise<void> {
+  // Without transactions the losers must not all delete each other, so the
+  // oldest _id wins and only rows created after it count as a clash.
+  const not = excludeId ? { _id: { $lt: excludeId } } : {};
+
+  const vanClash = await Reservation.countDocuments({ ...conflictFilter(vanId, start, end), ...not })
+    .session(session);
+  if (vanClash > 0) throw AppError.conflict(MESSAGES.DATES_UNAVAILABLE);
+
+  const ownClash = await Reservation.countDocuments({ ...customerConflictFilter(email, start, end), ...not })
+    .session(session);
+  if (ownClash > 0) throw AppError.conflict(MESSAGES.CUSTOMER_DOUBLE_BOOKED);
 }
 
 /* ---------------------------------------------------------------------- read */
@@ -166,16 +239,28 @@ export async function cancelReservation(id: string): Promise<ReservationDto> {
   return findReservationOrThrow(String(current._id));
 }
 
-export async function setLockState(idOrReference: string, unlock: boolean): Promise<ReservationDto> {
+/**
+ * Deliberately keyed on the booking reference and nothing else.
+ *
+ * The phone key is unauthenticated by design — the customer never gets an
+ * account — so the reference is the credential, the way an airline booking code
+ * is. Accepting a Mongo `_id` here as well would mean an id leaked anywhere
+ * (an admin URL, a log line) could unlock a van, so ids are not accepted.
+ */
+export async function setLockState(reference: string, unlock: boolean): Promise<ReservationDto> {
   await connectDb();
-  const current = await Reservation.findOne(byIdOrReference(idOrReference));
+  const current = await Reservation.findOne({ reference: reference.trim().toUpperCase() });
   if (!current) throw AppError.notFound(MESSAGES.RESERVATION_NOT_FOUND);
+  if (current.status === RESERVATION_STATUS.CANCELLED) throw AppError.forbidden(MESSAGES.KEY_CANCELLED);
   if (current.status !== RESERVATION_STATUS.CONFIRMED) throw AppError.forbidden(MESSAGES.KEY_NOT_ACTIVE);
 
-  // The phone key is only live between pickup and return.
-  const today = startOfToday();
-  if (toUtcDay(current.startDate) > today || toUtcDay(current.endDate) < today) {
-    throw AppError.forbidden(MESSAGES.KEY_NOT_ACTIVE);
+  // The phone key is only live between pickup and return — unless the demo flag
+  // is off, in which case holding the reference is enough.
+  if (PHONE_KEY.ENFORCE_RENTAL_WINDOW) {
+    const today = startOfToday();
+    if (toUtcDay(current.startDate) > today || toUtcDay(current.endDate) < today) {
+      throw AppError.forbidden(MESSAGES.KEY_NOT_ACTIVE);
+    }
   }
 
   current.isUnlocked = unlock;
@@ -205,8 +290,17 @@ function byIdOrReference(value: string): FilterQuery<ReservationDocument> {
   return isValidObjectId(value) ? { _id: value } : { reference: value.toUpperCase() };
 }
 
+/**
+ * The reference is the only thing standing between a stranger and someone's
+ * phone key, so it comes from a CSPRNG — not Math.random, and not the clock,
+ * which would make references issued near each other guessable from one another.
+ */
 function newReference(): string {
-  return `VH-${Math.floor(1000 + Math.random() * 9000)}${Date.now().toString(36).slice(-2).toUpperCase()}`;
+  let out = REFERENCE.PREFIX;
+  for (let i = 0; i < REFERENCE.LENGTH; i += 1) {
+    out += REFERENCE.ALPHABET[randomInt(REFERENCE.ALPHABET.length)];
+  }
+  return out;
 }
 
 function startOfToday(): Date {

@@ -1,6 +1,6 @@
 import type { ReservationDto } from "@/types";
 import type { ReservationStatus, AccessAction } from "@/constants/reservation-status";
-import { nights } from "@/lib/format";
+import { rentalDays } from "@/lib/format";
 import type { ReservationDocument } from "./reservation.model";
 import type { VanDocument } from "../vans/van.model";
 
@@ -25,7 +25,7 @@ export function toReservationDto(doc: Populated): ReservationDto {
     },
     startDate: doc.startDate.toISOString(),
     endDate: doc.endDate.toISOString(),
-    nights: nights(doc.startDate, doc.endDate),
+    days: rentalDays(doc.startDate, doc.endDate),
     pricePerDaySnapshot: doc.pricePerDaySnapshot,
     cleaningFee: doc.cleaningFee,
     totalAmount: doc.totalAmount,

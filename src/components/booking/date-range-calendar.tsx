@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { cn, isoDay, toUtcDay } from "@/lib/format";
+import { cn, isoDay, rentalDays } from "@/lib/format";
 import { blockedDays, isRangeFree } from "@/features/reservations/availability";
 import type { DateRange } from "@/types";
 
@@ -16,6 +16,7 @@ const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
 
 export function DateRangeCalendar({ bookedRanges, from, to, onChange }: Props): React.JSX.Element {
   const [offset, setOffset] = useState(0);
+  const [awaitingEnd, setAwaitingEnd] = useState(false);
   const blocked = useMemo(() => blockedDays(bookedRanges), [bookedRanges]);
   const today = isoDay(new Date());
 
@@ -27,12 +28,26 @@ export function DateRangeCalendar({ bookedRanges, from, to, onChange }: Props): 
     });
   }, [offset]);
 
+  /**
+   * One tap is already a valid booking — pick up and return on the same day —
+   * so the first tap sets both ends. A second tap extends the return date; a
+   * third starts a new selection.
+   */
+  function startAt(day: string): void {
+    onChange(day, day);
+    setAwaitingEnd(true);
+  }
+
   function pick(day: string): void {
-    if (!from || (from && to)) { onChange(day, null); return; }
-    if (day <= from) { onChange(day, null); return; }
+    if (!from || !awaitingEnd) { startAt(day); return; }
+    // Tapping the pickup day again confirms the one-day rental as it stands.
+    if (day === from) { setAwaitingEnd(false); return; }
+    // Going backwards reads as choosing a different pickup day.
+    if (day < from) { startAt(day); return; }
     // A range is only valid if nothing booked sits between the two ends.
-    if (!isRangeFree(bookedRanges, from, day)) { onChange(day, null); return; }
+    if (!isRangeFree(bookedRanges, from, day)) { startAt(day); return; }
     onChange(from, day);
+    setAwaitingEnd(false);
   }
 
   return (
@@ -40,7 +55,11 @@ export function DateRangeCalendar({ bookedRanges, from, to, onChange }: Props): 
       <div className="mb-3.5 flex items-center justify-between">
         <button type="button" onClick={() => setOffset((o) => Math.max(0, o - 1))} disabled={offset === 0}
           className="rounded-full border border-line px-3 py-1.5 text-sm font-semibold disabled:opacity-40">←</button>
-        <p className="text-[13px] font-semibold text-muted">Pick your pickup day, then your return day</p>
+        <p className="text-[13px] font-semibold text-muted">
+          {awaitingEnd
+            ? "Tap a later day to extend, or carry on for a one-day rental"
+            : "Tap a day to book it — tap a second day for a longer rental"}
+        </p>
         <button type="button" onClick={() => setOffset((o) => o + 1)}
           className="rounded-full border border-line px-3 py-1.5 text-sm font-semibold">→</button>
       </div>
@@ -114,7 +133,8 @@ function Month({ year, month, today, blocked, from, to, onPick }: MonthProps): R
   );
 }
 
-export function nightsBetween(from: string | null, to: string | null): number {
+/** Billable days, counting both the pickup and the return day. */
+export function rentalDaysBetween(from: string | null, to: string | null): number {
   if (!from || !to) return 0;
-  return Math.round((toUtcDay(to).getTime() - toUtcDay(from).getTime()) / 86_400_000);
+  return rentalDays(from, to);
 }

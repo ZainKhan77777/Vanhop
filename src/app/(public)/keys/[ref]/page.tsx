@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { findReservationOrThrow } from "@/features/reservations/reservation.service";
+import { REFERENCE } from "@/constants/reservation-status";
 import { KeyPanel } from "@/components/keys/key-panel";
 import type { ReservationDto } from "@/types";
 
@@ -8,9 +9,15 @@ export const dynamic = "force-dynamic";
 export default async function KeysPage({ params }: { params: Promise<{ ref: string }> }): Promise<React.JSX.Element> {
   const { ref } = await params;
 
+  // This page shows a customer's name, email and phone, so it is reachable by
+  // booking reference only. A Mongo _id that leaked from an admin URL or a log
+  // must not open it.
+  const reference = decodeURIComponent(ref).trim().toUpperCase();
+  if (!REFERENCE.PATTERN.test(reference)) notFound();
+
   let reservation: ReservationDto;
   try {
-    reservation = await findReservationOrThrow(ref);
+    reservation = await findReservationOrThrow(reference);
   } catch {
     notFound();
   }

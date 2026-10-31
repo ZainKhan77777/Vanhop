@@ -6,3 +6,7 @@ out
 .DS_Store
 *.tsbuildinfo
 next-env.d.ts
+
+# Working notes, not part of the deliverable
+Vanhop claude context.md
+.next-build

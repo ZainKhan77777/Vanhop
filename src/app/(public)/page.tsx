@@ -36,7 +36,7 @@ export default async function FleetPage(): Promise<React.JSX.Element> {
         </div>
       </section>
 
-      <section className="wrap mt-14">
+      <section id="fleet" className="wrap mt-14 scroll-mt-24">
         <div className="mb-7 flex flex-wrap items-end justify-between gap-5">
           <h2 className="text-[clamp(26px,3.2vw,38px)]">The fleet</h2>
           <p className="max-w-[40ch] text-[14.5px] text-white/65">

@@ -28,7 +28,7 @@ export interface ReservationDto {
   customer: { name: string; email: string; phone: string };
   startDate: string;
   endDate: string;
-  nights: number;
+  days: number;
   pricePerDaySnapshot: number;
   cleaningFee: number;
   totalAmount: number;

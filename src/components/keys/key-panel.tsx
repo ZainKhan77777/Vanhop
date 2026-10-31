@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useLock } from "@/hooks/use-lock";
-import { formatLongDay } from "@/lib/format";
+import { formatLongDay, toUtcDay } from "@/lib/format";
+import { RESERVATION_STATUS, PHONE_KEY } from "@/constants/reservation-status";
 import { ErrorNote } from "@/components/ui/error-note";
 import { VanLockAnimation } from "./van-lock-animation";
 import { LockToggle } from "./lock-toggle";
@@ -12,7 +13,10 @@ import type { ReservationDto } from "@/types";
 export function KeyPanel({ initial }: { initial: ReservationDto }): React.JSX.Element {
   const [reservation, setReservation] = useState(initial);
   const [pulse, setPulse] = useState(0);
-  const lock = useLock(reservation.id);
+  const lock = useLock(reservation.reference);
+
+  // Mirrors the server's rule, so the button is disabled instead of 403-ing.
+  const keyState = keyWindow(reservation);
 
   function toggle(): void {
     lock.mutate(!reservation.isUnlocked, {
@@ -39,13 +43,17 @@ export function KeyPanel({ initial }: { initial: ReservationDto }): React.JSX.El
           {reservation.isUnlocked ? "Doors unlocked" : "Doors locked"}
         </span>
 
-        <LockToggle unlocked={reservation.isUnlocked} pending={lock.isPending} pulse={pulse} onToggle={toggle} />
+        <LockToggle
+          unlocked={reservation.isUnlocked}
+          pending={lock.isPending}
+          disabled={!keyState.active}
+          pulse={pulse}
+          onToggle={toggle}
+        />
 
         {lock.isError && <ErrorNote message={lock.error.message} />}
 
-        <p className="max-w-[34ch] text-[13.5px] text-muted">
-          Your key works from 08:00 on {formatLongDay(reservation.startDate)} until 20:00 on {formatLongDay(reservation.endDate)}.
-        </p>
+        <p className="max-w-[36ch] text-[13.5px] text-muted">{keyState.note}</p>
       </section>
 
       <section className="panel">
@@ -55,4 +63,28 @@ export function KeyPanel({ initial }: { initial: ReservationDto }): React.JSX.El
       </section>
     </div>
   );
+}
+
+/** The same rule the server enforces in setLockState, phrased for a human. */
+function keyWindow(reservation: ReservationDto): { active: boolean; note: string } {
+  if (reservation.status === RESERVATION_STATUS.CANCELLED) {
+    return { active: false, note: "This reservation was cancelled, so the key is switched off." };
+  }
+
+  const start = toUtcDay(reservation.startDate);
+  const end = toUtcDay(reservation.endDate);
+  const span = `${formatLongDay(start)} to ${formatLongDay(end)}`;
+
+  if (!PHONE_KEY.ENFORCE_RENTAL_WINDOW) {
+    return { active: true, note: `Your rental runs ${span}. Anyone holding this reference can lock and unlock the van.` };
+  }
+
+  const today = toUtcDay(new Date());
+  if (start > today) {
+    return { active: false, note: `Your key switches on at 08:00 on ${formatLongDay(start)}.` };
+  }
+  if (end < today) {
+    return { active: false, note: `This rental ended on ${formatLongDay(end)}. The key is no longer live.` };
+  }
+  return { active: true, note: `Your key works from 08:00 on ${formatLongDay(start)} until 20:00 on ${formatLongDay(end)}.` };
 }

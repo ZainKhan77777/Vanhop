@@ -21,11 +21,24 @@ export function ConfirmationPanel({ reservation }: { reservation: ReservationDto
         A confirmation is on its way to {reservation.customer.email}.
       </p>
 
+      <div className="mx-auto mt-6 max-w-sm rounded-xl border-2 border-navy-900 p-4">
+        <p className="text-[11.5px] font-bold uppercase tracking-[.09em] text-muted">Booking reference</p>
+        <p className="mt-1.5 text-[26px] font-extrabold tracking-[.16em]">{reservation.reference}</p>
+      </div>
+
+      <div className="mx-auto mt-4 max-w-sm rounded-xl border border-brass/35 bg-brass/10 p-4 text-left">
+        <p className="text-[13.5px] leading-relaxed text-navy-900">
+          <b>Save this reference.</b> It is also your phone key — it is how you lock and unlock
+          the van, and the only way back into your booking. There is no account and no password,
+          so we can&rsquo;t recover it for you if it&rsquo;s lost.
+        </p>
+      </div>
+
       <div className="mx-auto mt-6 max-w-sm text-left">
-        <DataRow label="Reference" value={reservation.reference} />
         <DataRow label="Van" value={reservation.van.name} />
         <DataRow label="Pickup" value={formatLongDay(reservation.startDate)} />
         <DataRow label="Return" value={formatLongDay(reservation.endDate)} />
+        <DataRow label="Days" value={String(reservation.days)} />
         <DataRow strong label="Total" value={gel(reservation.totalAmount)} />
       </div>
 

@@ -1,7 +1,10 @@
 const DAY_MS = 86_400_000;
 
+/** Georgian lari. Exported so JSX can use it \u2014 "\u20BE" in an attribute is literal text. */
+export const CURRENCY = "\u20BE";
+
 export function gel(amount: number): string {
-  return `\u20BE${Math.round(amount).toLocaleString("en-GB")}`;
+  return `${CURRENCY}${Math.round(amount).toLocaleString("en-GB")}`;
 }
 
 /** Normalises any date to UTC midnight so comparisons ignore clock time and zone. */
@@ -14,8 +17,16 @@ export function isoDay(value: Date | string): string {
   return toUtcDay(value).toISOString().slice(0, 10);
 }
 
-export function nights(from: Date | string, to: Date | string): number {
-  return Math.max(0, Math.round((toUtcDay(to).getTime() - toUtcDay(from).getTime()) / DAY_MS));
+/**
+ * Billable days for a rental, where the return date is the last day the
+ * customer keeps the van — not a checkout the morning after.
+ *
+ * Pick up and return on the same day and that is one day, which is what people
+ * expect when they tap a single date in the calendar.
+ */
+export function rentalDays(from: Date | string, to: Date | string): number {
+  const span = Math.round((toUtcDay(to).getTime() - toUtcDay(from).getTime()) / DAY_MS);
+  return Math.max(0, span + 1);
 }
 
 export function addDays(value: Date | string, days: number): Date {

@@ -55,7 +55,14 @@ cp .env.example .env.local
 | `JWT_SECRET` | Signs the admin session cookie. Generate with `openssl rand -base64 32` |
 | `ADMIN_EMAIL` | Admin account the seed script creates |
 | `ADMIN_PASSWORD` | Password for that account |
-| `NEXT_PUBLIC_APP_URL` | Base URL, `http://localhost:3000` locally |
+| `NEXT_PUBLIC_APP_URL` | Base URL, `http://localhost:3000` locally. Used for the key link in the email |
+| `SMTP_HOST` `SMTP_PORT` `SMTP_USER` `SMTP_PASS` `MAIL_FROM` | Optional. Sends the booking confirmation |
+
+**Email is optional.** Leave the SMTP variables blank and the app books exactly
+as before — the confirmation is printed to the server log instead of being sent,
+so the reference is still easy to copy during a demo. To send for real with
+Gmail: turn on 2-Step Verification, create an App Password at
+<https://myaccount.google.com/apppasswords>, and use it as `SMTP_PASS`.
 
 `.env.local` is gitignored. Only `.env.example` belongs in the repo.
 
@@ -64,10 +71,14 @@ cp .env.example .env.local
 ## 4. Run it
 
 ```bash
-npm install
-npm run seed     # inserts the 3 vans + the admin user
-npm run dev
+yarn install
+yarn seed     # inserts the 3 vans + the admin user
+yarn dev
 ```
+
+The repo is on **Yarn** — `yarn.lock` is the committed lockfile. npm works too
+(`npm install && npm run seed && npm run dev`), but don't commit a second
+lockfile: Vercel picks its package manager from whichever one it finds.
 
 Open <http://localhost:3000>.
 
@@ -75,7 +86,8 @@ Open <http://localhost:3000>.
 |---|---|
 | `/` | The fleet |
 | `/book/sprinter` | Booking flow |
-| `/keys/VH-XXXX` | Phone key for a booking (link shown after booking) |
+| `/keys` | Enter a booking reference to open its phone key |
+| `/keys/VH-XXXXXXXX` | The phone key itself (linked from the confirmation screen) |
 | `/admin/login` | Staff sign in |
 | `/admin` | Dashboard |
 
@@ -139,29 +151,53 @@ A few rules the code sticks to:
 - **Nothing is hardcoded.** Vans come from the database; statuses, fees and
   copy come from `constants/`.
 
-### Availability and the race condition
+### Availability and the two booking rules
 
-A booking clashes when:
+A booking is refused when either rule fails.
+
+**1. The van must be free.** Two ranges clash when:
 
 ```
-existing.startDate < newEnd   AND   existing.endDate > newStart
+existing.startDate <= newEnd   AND   existing.endDate >= newStart
 ```
 
-and the existing booking isn't cancelled. The end date is treated as **checkout
-(exclusive)**, so a van returned on the 8th can go out again on the 8th.
+and the existing booking isn't cancelled. **Both ends are inclusive**: the return
+date is the last day the customer keeps the van, not a checkout the morning
+after. So a booking ending on the 8th and one starting on the 8th *do* clash,
+and `rentalDays()` counts both ends — pick up and return on the 6th and that is
+one billable day. Tapping a single date in the calendar is therefore a complete,
+valid booking; tapping a second date extends it.
 
-The interesting part is that a check followed by an insert is not safe. Two
-people can both pass the check in the same instant and both get written.
+**2. The customer must be free.** One person cannot drive two vans at once, so
+the same email cannot hold two overlapping bookings, on any van. Booking several
+vans is still fine as long as the dates don't overlap — this only stops a
+double-submitted form and the obvious abuse case. Remove
+`customerConflictFilter` from `assertNoClash` if a group hiring two vans at once
+should be allowed.
 
-**What this project does:** the re-check and the insert run inside a Mongoose
-transaction (`session.withTransaction`). Atlas runs a replica set, so either
-both the check and the write commit, or neither does. The second request sees
-the first one's row and is rejected with a 409.
+### Why a transaction alone is not enough
 
-**Fallback for local dev:** a standalone `mongod` has no transactions. If the
-transaction fails for that reason, the code inserts, immediately re-checks for
-conflicts excluding its own row, and deletes its own insert if it lost the race.
-The booking that committed first wins, and the loser is never left stored.
+A check followed by an insert is not safe — two people can pass the check in the
+same instant. The obvious fix is to put both inside a transaction, but that does
+**not** work on its own, and it is worth being precise about why.
+
+MongoDB transactions give *snapshot isolation*, not serialisability. Two
+concurrent transactions each read "nothing clashes" from their own snapshot, then
+insert two **different** reservation documents. Different documents are not a
+write conflict, so both commit and the van is double-booked. Tested with six
+simultaneous requests for the same van and dates: four were accepted.
+
+**What this project does:** each booking first bumps a counter on a shared
+`BookingLock` row — one row per van, one per customer — inside the transaction.
+Writing the *same* document **is** a conflict, so Mongo aborts the loser with a
+`TransientTransactionError`, `withTransaction` retries it, and the retry reads the
+winner's reservation and returns a clean 409. Re-tested: one 201, five 409s, one
+row stored.
+
+**Fallback for local dev:** a standalone `mongod` has no transactions. There the
+code inserts first, then re-checks. The tie-break is the `_id`: a row only
+deletes itself if an *older* conflicting row exists, so exactly one survives
+rather than all of them deleting each other.
 
 The relevant indexes:
 
@@ -169,6 +205,7 @@ The relevant indexes:
 Reservation: { vanId: 1, startDate: 1, endDate: 1 }   # availability lookups
 Reservation: { createdAt: -1 }                         # admin list ordering
 Reservation: { reference: 1 } unique
+BookingLock: { key: 1 } unique                         # the serialisation point
 ```
 
 ### Auth
@@ -181,18 +218,54 @@ client-side scripts can't read it.
 because middleware only sees navigation, so every admin API controller also
 calls `requireAdmin()` as its first line.
 
+### The phone key, which has no login
+
+**Demo setting:** `PHONE_KEY.ENFORCE_RENTAL_WINDOW` in
+`src/constants/reservation-status.ts` is `false`, so anyone holding a reference
+can lock and unlock at any time. That is deliberate — it lets the feature be
+tried straight after booking instead of only on the pickup day. **Set it to
+`true` for a real deployment** and the key works only between the pickup and
+return dates. The API and the key page both read the flag, so one edit changes
+the rule and the button together.
+
+The customer never gets an account, so the booking reference **is** the
+credential — the same model as an airline booking code or a calendar invite
+link. Three things make that defensible:
+
+- The reference comes from a CSPRNG (`node:crypto`), not `Math.random()` and not
+  the clock. Eight characters from a 26-character alphabet is about 2×10¹¹
+  combinations, and references issued seconds apart tell you nothing about each
+  other.
+- `/keys/:ref` and the lock endpoint accept a **reference only**. A Mongo `_id`
+  that leaked from an admin URL or a log line returns 404, so the one identifier
+  staff see cannot open a customer's key.
+- The lock endpoint is rate limited to 20 attempts a minute per IP, so the
+  keyspace can't be walked.
+
+`src/lib/rate-limit.ts` keeps its counter in process memory, which is honest for
+one Node process but does not span serverless instances. A production deployment
+would move it to Redis or Upstash; it is the one piece here that is sized for the
+assignment rather than for scale.
+
 ---
 
 ## 7. Scripts
 
 | Command | What it does |
 |---|---|
-| `npm run dev` | Dev server |
-| `npm run build` | Production build |
-| `npm run start` | Serve the production build |
-| `npm run seed` | Insert the vans and admin user |
-| `npm run typecheck` | `tsc --noEmit` |
-| `npm run lint` | Next.js lint |
+| `yarn dev` | Dev server |
+| `yarn build` | Production build |
+| `yarn start` | Serve the production build |
+| `yarn seed` | Insert the vans and admin user |
+| `yarn typecheck` | `tsc --noEmit` |
+| `yarn lint` | Next.js lint |
+
+To build while a dev server is running, give the build its own output folder so
+the two don't fight over `.next`:
+
+```bash
+NEXT_DIST_DIR=.next-build yarn build
+```
 
 ---
 
@@ -202,5 +275,20 @@ calls `requireAdmin()` as its first line.
   `scripts/seed.ts` and re-running the seed.
 - The lock/unlock button is a simulation, as the brief asked — it writes to the
   reservation's `accessLog` rather than talking to real hardware.
-- No email is actually sent on confirmation; the confirmation screen shows the
-  booking reference and a link to the phone key instead.
+- The confirmation email has been verified as far as the SMTP connection — the
+  config is read, a connection is attempted, and failures are logged without
+  affecting the booking — but it has **not** been tested against a live mail
+  server. Add real SMTP credentials and send one booking to yourself before
+  relying on it.
+- Mail is sent inside the booking request, so a slow mail server delays the
+  response (capped at ~6s by the timeouts in `src/lib/mailer.ts`). A queue would
+  be the real fix.
+- The phone key's rental-window check is disabled for the demo — see
+  *The phone key* above before deploying.
+- The lock rate limiter is per process, not shared between serverless instances
+  (see *The phone key* above).
+- `BookingLock` gains one row per customer email and never prunes them. At this
+  size that is a rounding error; a cleanup job would be the fix.
+- `next/font` downloads Google Fonts at build time, so a build needs network
+  access to `fonts.googleapis.com`. A flaky connection fails the build; re-run
+  it, or self-host the two fonts with `next/font/local` to remove the dependency.

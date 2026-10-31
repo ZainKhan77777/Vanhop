@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { RESERVATION_STATUS } from "@/constants/reservation-status";
 import { ROUTES } from "@/constants/routes";
-import { toUtcDay, formatDay, initials } from "@/lib/format";
+import { toUtcDay, formatDay, initials, CURRENCY } from "@/lib/format";
 import { StatCard } from "./stat-card";
 import { DashboardHeader } from "./dashboard-header";
 import { timeline } from "./reservation-status";
@@ -17,7 +17,7 @@ export function OverviewView({ reservations }: { reservations: ReservationDto[] 
 
   const out = live.filter((r) => toUtcDay(r.startDate).getTime() <= today && toUtcDay(r.endDate).getTime() >= today);
   const revenue = live.reduce((sum, r) => sum + r.totalAmount, 0);
-  const nights = live.reduce((sum, r) => sum + r.nights, 0);
+  const days = live.reduce((sum, r) => sum + r.days, 0);
 
   const upcoming = live
     .filter((r) => toUtcDay(r.endDate).getTime() >= today)
@@ -35,8 +35,8 @@ export function OverviewView({ reservations }: { reservations: ReservationDto[] 
       <dl className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Reservations" value={live.length} />
         <StatCard label="Out right now" value={out.length} />
-        <StatCard label="Nights booked" value={nights} />
-        <StatCard label="Revenue" value={revenue} prefix="\u20BE" />
+        <StatCard label="Days booked" value={days} />
+        <StatCard label="Revenue" value={revenue} prefix={CURRENCY} />
       </dl>
 
       <section className="panel mt-5">

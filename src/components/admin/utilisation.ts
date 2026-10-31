@@ -16,7 +16,7 @@ export function buildUtilisation(vans: VanDto[], reservations: ReservationDto[])
       kind: van.kind,
       imageUrl: van.imageUrl,
       pricePerDay: van.pricePerDay,
-      bookedDays: mine.reduce((sum, r) => sum + r.nights, 0),
+      bookedDays: mine.reduce((sum, r) => sum + r.days, 0),
       reservations: mine.length,
       revenue: mine.reduce((sum, r) => sum + r.totalAmount, 0),
       outNow: mine.some(

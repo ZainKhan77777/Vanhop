@@ -64,8 +64,8 @@ export function ReservationDrawer({ reservation, cancelling, onClose, onCancel }
 
           <SectionLabel>Charges</SectionLabel>
           <DataRow
-            label={`${gel(reservation.pricePerDaySnapshot)} × ${reservation.nights} days`}
-            value={gel(reservation.pricePerDaySnapshot * reservation.nights)}
+            label={`${gel(reservation.pricePerDaySnapshot)} × ${reservation.days} days`}
+            value={gel(reservation.pricePerDaySnapshot * reservation.days)}
           />
           <DataRow label="Cleaning" value={gel(reservation.cleaningFee)} />
           <DataRow label="Deposit (refundable)" value={gel(PRICING.DEPOSIT)} />

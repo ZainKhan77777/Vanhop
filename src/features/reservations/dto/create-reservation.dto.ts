@@ -15,7 +15,8 @@ export const createReservationDto = z
     endDate: day,
   })
   // Both checks run on the client and the server from this one schema.
-  .refine((v) => new Date(v.endDate) > new Date(v.startDate), {
+  // Same day in and out is a one-day rental, so this is >=, not >.
+  .refine((v) => new Date(v.endDate) >= new Date(v.startDate), {
     message: MESSAGES.DATE_ORDER,
     path: ["endDate"],
   })

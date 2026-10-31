@@ -11,5 +11,10 @@ export const MESSAGES = {
   DATE_ORDER: "The return date must be after the pickup date.",
   RESERVATION_NOT_FOUND: "We couldn't find that reservation.",
   KEY_NOT_ACTIVE: "The phone key only works during your rental dates.",
+  KEY_CANCELLED: "This reservation was cancelled, so its phone key is switched off.",
   ALREADY_CANCELLED: "That reservation is already cancelled.",
+  CUSTOMER_DOUBLE_BOOKED:
+    "You already have a van booked over those dates. Finish or cancel that rental first, or pick a different range.",
+  BAD_REFERENCE: "That doesn't look like a booking reference. It looks like VH-7K2M9QXD.",
+  TOO_MANY_ATTEMPTS: "Too many attempts. Wait a minute and try again.",
 } as const;

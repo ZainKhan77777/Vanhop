@@ -52,7 +52,7 @@ export function ReservationTable({ items, onSelect }: Props): React.JSX.Element 
                   <td className="whitespace-nowrap px-5 py-3.5 text-[14px]">{item.van.name}</td>
                   <td className="whitespace-nowrap px-5 py-3.5 text-[14px] tabular-nums">{formatDay(item.startDate)}</td>
                   <td className="whitespace-nowrap px-5 py-3.5 text-[14px] tabular-nums">{formatDay(item.endDate)}</td>
-                  <td className="px-5 py-3.5 text-[14px] tabular-nums">{item.nights}</td>
+                  <td className="px-5 py-3.5 text-[14px] tabular-nums">{item.days}</td>
                   <td className="whitespace-nowrap px-5 py-3.5 text-[14px] font-semibold tabular-nums">{gel(item.totalAmount)}</td>
                   <td className="px-5 py-3.5"><Badge tone={state.tone}>{state.label}</Badge></td>
                   <td className="px-5 py-3.5 text-right text-lg text-muted">›</td>

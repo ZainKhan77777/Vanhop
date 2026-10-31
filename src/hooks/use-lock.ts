@@ -5,8 +5,9 @@ import { sendData } from "@/lib/axios";
 import { API } from "@/constants/routes";
 import type { ReservationDto } from "@/types";
 
-export function useLock(reservationId: string): UseMutationResult<ReservationDto, Error, boolean> {
+/** Keyed on the booking reference — the lock endpoint does not accept Mongo ids. */
+export function useLock(reference: string): UseMutationResult<ReservationDto, Error, boolean> {
   return useMutation({
-    mutationFn: (unlock) => sendData<ReservationDto>(API.lock(reservationId), { unlock }),
+    mutationFn: (unlock) => sendData<ReservationDto>(API.lock(reference), { unlock }),
   });
 }

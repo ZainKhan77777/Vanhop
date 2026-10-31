@@ -42,7 +42,7 @@ export function ReservationsView(): React.JSX.Element {
     const head = "Reference,Customer,Email,Phone,Van,Pickup,Return,Days,Total,Status";
     const body = items.map((r) =>
       [r.reference, r.customer.name, r.customer.email, r.customer.phone, r.van.name,
-       formatDay(r.startDate), formatDay(r.endDate), r.nights, r.totalAmount, r.status]
+       formatDay(r.startDate), formatDay(r.endDate), r.days, r.totalAmount, r.status]
         .map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","),
     ).join("\n");
 

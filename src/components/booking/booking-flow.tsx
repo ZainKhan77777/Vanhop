@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorNote } from "@/components/ui/error-note";
 import { StepIndicator } from "./step-indicator";
 import { VanPicker } from "./van-picker";
-import { DateRangeCalendar, nightsBetween } from "./date-range-calendar";
+import { DateRangeCalendar, rentalDaysBetween } from "./date-range-calendar";
 import { BookingForm, type ContactValues } from "./booking-form";
 import { BookingSummary } from "./booking-summary";
 import { ConfirmationPanel } from "./confirmation-panel";
@@ -22,7 +22,7 @@ export function BookingFlow({ vans, initialVan }: { vans: VanDto[]; initialVan: 
 
   const availability = useAvailability(van.id);
   const create = useCreateReservation();
-  const nights = nightsBetween(from, to);
+  const days = rentalDaysBetween(from, to);
 
   const ranges = useMemo(() => availability.data?.bookedRanges ?? [], [availability.data]);
   const clash = Boolean(from && to && !isRangeFree(ranges, from, to));
@@ -66,7 +66,7 @@ export function BookingFlow({ vans, initialVan }: { vans: VanDto[]; initialVan: 
           <section className="panel">
             <h2 className="text-[22px]">Pick your dates</h2>
             <p className="mb-5 mt-1 text-[14.5px] text-muted">
-              Return day is checkout, so a van returned in the morning can go out the same afternoon.
+              Tap one day for a single-day rental, or a second day to extend it. The return day is included.
             </p>
 
             {availability.isLoading && <Skeleton className="h-72 w-full" />}
@@ -86,7 +86,7 @@ export function BookingFlow({ vans, initialVan }: { vans: VanDto[]; initialVan: 
           </section>
         </div>
 
-        <BookingSummary van={van} from={from} to={to} nights={nights} />
+        <BookingSummary van={van} from={from} to={to} days={days} />
       </div>
     </div>
   );

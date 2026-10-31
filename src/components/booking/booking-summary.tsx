@@ -7,11 +7,11 @@ interface Props {
   van: VanDto | null;
   from: string | null;
   to: string | null;
-  nights: number;
+  days: number;
 }
 
-export function BookingSummary({ van, from, to, nights }: Props): React.JSX.Element {
-  const subtotal = van ? nights * van.pricePerDay : 0;
+export function BookingSummary({ van, from, to, days }: Props): React.JSX.Element {
+  const subtotal = van ? days * van.pricePerDay : 0;
 
   return (
     <aside className="panel sticky top-24">
@@ -21,9 +21,9 @@ export function BookingSummary({ van, from, to, nights }: Props): React.JSX.Elem
       <DataRow label="Van" value={van?.name ?? "Not chosen"} />
       <DataRow label="Pickup" value={from ? formatLongDay(from) : "—"} />
       <DataRow label="Return" value={to ? formatLongDay(to) : "—"} />
-      <DataRow label="Days" value={nights || "—"} />
+      <DataRow label="Days" value={days || "—"} />
       <DataRow
-        label={van && nights ? `${gel(van.pricePerDay)} × ${nights} days` : "Daily rate"}
+        label={van && days ? `${gel(van.pricePerDay)} × ${days === 1 ? "1 day" : `${days} days`}` : "Daily rate"}
         value={subtotal ? gel(subtotal) : "—"}
       />
       <DataRow label="Cleaning" value={gel(PRICING.CLEANING_FEE)} />

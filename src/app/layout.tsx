@@ -14,7 +14,13 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }): React.JSX.Element {
   return (
     <html lang="en" className={`${serif.variable} ${sans.variable}`}>
-      <body>
+      {/*
+        Extensions (password managers, ad blockers, Grammarly) inject attributes
+        like `bis_skin_checked` into the DOM before React hydrates, which React
+        then reports as a hydration mismatch. The markup itself is identical, so
+        the warning is suppressed one level down rather than chased.
+      */}
+      <body suppressHydrationWarning>
         <QueryProvider>{children}</QueryProvider>
       </body>
     </html>

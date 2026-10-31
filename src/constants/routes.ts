@@ -2,6 +2,7 @@ export const ROUTES = {
   home: "/",
   book: (vanId: string) => `/book/${vanId}`,
   keys: (reference: string) => `/keys/${reference}`,
+  keysLookup: "/keys",
   adminLogin: "/admin/login",
   admin: "/admin",
   adminReservations: "/admin/reservations",
