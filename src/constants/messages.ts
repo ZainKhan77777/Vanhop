@@ -1,0 +1,15 @@
+export const MESSAGES = {
+  AUTH_REQUIRED: "Please sign in to continue.",
+  FORBIDDEN: "You do not have access to this area.",
+  INVALID_CREDENTIALS: "That email and password don't match an account.",
+  NOT_FOUND: "We couldn't find what you were looking for.",
+  INVALID_INPUT: "Please check the details you entered.",
+  SERVER_ERROR: "Something went wrong on our side. Please try again.",
+  VAN_NOT_FOUND: "That van is no longer available.",
+  DATES_UNAVAILABLE: "Those dates have just been taken. Please pick another range.",
+  DATE_IN_PAST: "Pickup cannot be in the past.",
+  DATE_ORDER: "The return date must be after the pickup date.",
+  RESERVATION_NOT_FOUND: "We couldn't find that reservation.",
+  KEY_NOT_ACTIVE: "The phone key only works during your rental dates.",
+  ALREADY_CANCELLED: "That reservation is already cancelled.",
+} as const;
