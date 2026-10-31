@@ -15,11 +15,11 @@ export default async function FleetPage(): Promise<React.JSX.Element> {
   return (
     <>
       <section className="wrap pt-8">
-        <div className="relative aspect-[16/7] min-h-[340px] overflow-hidden rounded-[22px]">
+        <div className="relative h-[380px] w-full overflow-hidden rounded-[18px] sm:h-[440px] sm:rounded-[22px] lg:aspect-[16/7] lg:h-auto">
           <Image src={HERO} alt="" fill priority sizes="100vw" className="animate-kenburns object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-navy-900/85 via-navy-900/35 to-transparent" />
 
-          <div className="absolute inset-x-0 bottom-0 max-w-[720px] p-6 pb-16 sm:p-12 sm:pb-20">
+          <div className="absolute inset-x-0 bottom-0 max-w-[720px] p-5 pb-10 sm:p-12 sm:pb-20">
             <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3.5 py-2 text-[13px] font-semibold backdrop-blur">
               <span className="h-1.5 w-1.5 rounded-full bg-brass-light" />
               {vans.length} vans free this week

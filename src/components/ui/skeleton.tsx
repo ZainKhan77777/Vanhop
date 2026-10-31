@@ -1,7 +1,25 @@
 import { cn } from "@/lib/format";
 
-export function Skeleton({ className }: { className?: string }): React.JSX.Element {
-  return <div className={cn("animate-pulse rounded-xl bg-surface-2", className)} />;
+/**
+ * `tone` picks the placeholder colour for the surface it sits on: "light"
+ * inside white panels, "dark" directly on the navy page background. Passing a
+ * bg-* class through `className` would be unreliable — Tailwind classes have
+ * equal specificity, so the winner depends on stylesheet order, not the order
+ * they are written in.
+ */
+export function Skeleton({
+  className,
+  tone = "light",
+}: {
+  className?: string;
+  tone?: "light" | "dark";
+}): React.JSX.Element {
+  return (
+    <div
+      aria-hidden
+      className={cn("animate-pulse rounded-xl", tone === "dark" ? "bg-white/10" : "bg-surface-2", className)}
+    />
+  );
 }
 
 export function CardSkeleton(): React.JSX.Element {
@@ -15,4 +33,9 @@ export function CardSkeleton(): React.JSX.Element {
       </div>
     </div>
   );
+}
+
+/** Screen-reader announcement to pair with any visual skeleton. */
+export function LoadingLabel({ children = "Loading" }: { children?: string }): React.JSX.Element {
+  return <span className="sr-only" role="status" aria-live="polite">{children}</span>;
 }

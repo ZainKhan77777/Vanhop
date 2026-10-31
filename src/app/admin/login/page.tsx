@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -10,6 +11,7 @@ import { ROUTES } from "@/constants/routes";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ErrorNote } from "@/components/ui/error-note";
+import { VanMark } from "@/components/ui/van-mark";
 import { cn } from "@/lib/format";
 
 export default function LoginPage(): React.JSX.Element {
@@ -42,17 +44,20 @@ function LoginForm(): React.JSX.Element {
   }
 
   return (
-    <main className="grid min-h-screen place-items-center px-6 py-14">
+    <main className="grid min-h-screen place-items-center px-5 py-14 sm:px-6">
+      <div className="w-full max-w-[400px]">
       <form
         key={shake}
         onSubmit={handleSubmit(submit)}
         noValidate
-        className={cn("w-full max-w-[400px] animate-lift rounded-xl2 bg-white p-8 text-navy-900 shadow-md2",
+        className={cn("w-full animate-lift rounded-xl2 bg-white p-6 text-navy-900 shadow-md2 sm:p-8",
           shake > 0 && "animate-shake")}
       >
-        <span className="mb-5 grid h-12 w-12 place-items-center rounded-[13px] bg-navy-900 text-lg font-extrabold text-white">V</span>
-        <h1 className="text-[27px]">Staff sign in</h1>
-        <p className="mb-6 mt-1.5 text-sm text-muted">The reservations dashboard is for VanHop staff.</p>
+        <span className="mb-5 grid h-12 w-12 place-items-center rounded-[13px] bg-navy-900 text-white">
+          <VanMark size={24} />
+        </span>
+        <h1 className="text-[27px]">Admin sign in</h1>
+        <p className="mb-6 mt-1.5 text-sm text-muted">The reservations dashboard is for VanHop admins.</p>
 
         <div className="space-y-4">
           <Input label="Email" type="email" autoComplete="username" placeholder="you@vanhop.ge"
@@ -72,6 +77,14 @@ function LoginForm(): React.JSX.Element {
           <b className="font-semibold text-navy-900">ADMIN_PASSWORD</b> in your env file.
         </p>
       </form>
+
+      <Link
+        href={ROUTES.home}
+        className="mt-6 block text-center text-[13.5px] font-semibold text-white/60 transition hover:text-white"
+      >
+        &larr; Back to the website
+      </Link>
+      </div>
     </main>
   );
 }

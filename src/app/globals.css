@@ -12,8 +12,8 @@
 }
 
 @layer components {
-  .wrap { @apply mx-auto w-full max-w-[1180px] px-6; }
-  .panel { @apply rounded-xl2 border border-line bg-white p-6 text-navy-900 shadow-sm2 sm:p-7; }
+  .wrap { @apply mx-auto w-full max-w-[1180px] px-4 sm:px-6; }
+  .panel { @apply rounded-xl2 border border-line bg-white p-5 text-navy-900 shadow-sm2 sm:p-7; }
   .field {
     @apply w-full rounded-xl border-[1.5px] border-line bg-surface-2 px-3.5 py-3 text-[14.5px]
            text-navy-900 transition-colors placeholder:text-muted/70

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { ROUTES } from "@/constants/routes";
 import { cn } from "@/lib/format";
 import { Button } from "@/components/ui/button";
+import { VanMark } from "@/components/ui/van-mark";
 
 const LINKS = [
   { href: ROUTES.home, label: "Fleet", match: (p: string) => p === "/" },
@@ -22,19 +23,14 @@ export function SiteNav(): React.JSX.Element {
       <div className="wrap flex items-center gap-4 py-3">
         <Link href={ROUTES.home} className="flex min-w-0 shrink-0 items-center gap-3">
           <span className="grid h-10 w-10 flex-none place-items-center rounded-[10px] bg-navy-900 text-white">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-              <path d="M3 13h13l3 4h2v-4l-3-5H6L3 9z" />
-              <circle cx="7.5" cy="17.5" r="1.5" />
-              <circle cx="17.5" cy="17.5" r="1.5" />
-            </svg>
+            <VanMark size={20} />
           </span>
-          <span className="min-w-0">
-            <b className="block text-[19px] font-extrabold leading-tight tracking-tight">VanHop</b>
+          <span className="hidden min-w-0 min-[420px]:block">
+            <b className="block whitespace-nowrap text-[19px] font-extrabold leading-tight tracking-tight">VanHop</b>
             <i className="hidden text-xs not-italic leading-tight text-muted sm:block">Van rental · Tbilisi</i>
           </span>
         </Link>
 
-        {/* Pushed right on wide screens, centred in the leftover space on small ones. */}
         <nav aria-label="Main" className="ml-auto flex items-center gap-1 rounded-full bg-surface-2 p-1">
           {LINKS.map((link) => {
             const active = link.match(pathname);
